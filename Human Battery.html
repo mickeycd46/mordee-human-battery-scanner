@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HUMAN BATTERY SCANNER — Mordee × Allianz Ayudhya</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Sarabun:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  :root {
+    --blue: #003781;
+    --blue-light: #0050bb;
+    --blue-glow: #2979ff;
+    --teal: #00c9a7;
+    --teal-dim: #00897b;
+    --mint: #64ffda;
+    --white: #f0f8ff;
+    --navy: #020b18;
+    --navy2: #041428;
+    --navy3: #061d33;
+    --red: #ff3b5c;
+    --orange: #ff8c42;
+    --yellow: #ffd166;
+    --green: #06d6a0;
+    --glass: rgba(0, 55, 129, 0.15);
+    --glass2: rgba(0, 201, 167, 0.08);
+    --border: rgba(0, 201, 167, 0.25);
+    --font-display: 'Orbitron', monospace;
+    --font-body: 'Sarabun', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--navy);
+    color: var(--white);
+    font-family: var(--font-body);
+    cursor: none;
+  }
+
+  /* CUSTOM CURSOR */
+  .cursor {
+    position: fixed; width: 20px; height: 20px;
+    border: 2px solid var(--teal);
+    border-radius: 50%; pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, width 0.2s, height 0.2s, border-color 0.2s;
+    z-index: 9999;
+    mix-blend-mode: difference;
+  }
+  .cursor-dot {
+    position: fixed; width: 4px; height: 4px;
+    background: var(--mint);
+    border-radius: 50%; pointer-events: none;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+  }
+
+  /* CANVAS BACKGROUND */
+  #bgCanvas {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+  }
+
+  /* SCREENS */
+  .screen {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 10;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.6s ease;
+  }
+  .screen.active {
+    opacity: 1; pointer-events: all;
+  }
+
+  /* SCANLINE OVERLAY */
+  .scanlines {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%; z-index: 5;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent, transparent 2px,
+      rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+  }
+
+  /* HUD CORNERS */
+  .hud-corner {
+    position: fixed; width: 60px; height: 60px;
+    z-index: 20; pointer-events: none;
+  }
+  .hud-corner::before, .hud-corner::after {
+    content: ''; position: absolute;
+    background: var(--teal);
+  }
+  .hud-corner::before { width: 2px; height: 40px; }
+  .hud-corner::after { width: 40px; height: 2px; }
+  .hud-tl { top: 20px; left: 20px; }
+  .hud-tl::before { top: 0; left: 0; }
+  .hud-tl::after { top: 0; left: 0; }
+  .hud-tr { top: 20px; right: 20px; }
+  .hud-tr::before { top: 0; right: 0; }
+  .hud-tr::after { top: 0; right: 0; }
+  .hud-bl { bottom: 20px; left: 20px; }
+  .hud-bl::before { bottom: 0; left: 0; }
+  .hud-bl::after { bottom: 0; left: 0; }
+  .hud-br { bottom: 20px; right: 20px; }
+  .hud-br::before { bottom: 0; right: 0; }
+  .hud-br::after { bottom: 0; right: 0; }
+
+  /* STATUS BAR */
+  .status-bar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 44px; z-index: 30;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 0 80px;
+    background: rgba(2, 11, 24, 0.8);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(100, 255, 218, 0.6);
+  }
+  .status-brand {
+    display: flex; gap: 16px; align-items: center;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--teal);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  /* ===================== ATTRACT SCREEN ===================== */
+  #attract {
+    gap: 0;
+    background: radial-gradient(ellipse at 30% 40%, rgba(0,55,129,0.3) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 60%, rgba(0,201,167,0.15) 0%, transparent 50%);
+  }
+
+  .attract-logo {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--teal);
+    opacity: 0.7;
+    margin-bottom: 24px;
+    animation: fadeInUp 1s ease 0.3s both;
+  }
+
+  .attract-title {
+    font-family: var(--font-display);
+    font-size: clamp(42px, 7vw, 96px);
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-align: center;
+    line-height: 1;
+    margin-bottom: 8px;
+    animation: fadeInUp 1s ease 0.5s both;
+    position: relative;
+  }
+  .attract-title .word-human { color: var(--white); }
+  .attract-title .word-battery {
+    color: var(--teal);
+    text-shadow: 0 0 40px var(--teal), 0 0 80px rgba(0,201,167,0.4);
+  }
+  .attract-title .word-scanner { color: var(--blue-glow); }
+
+  .attract-subtitle {
+    font-size: clamp(16px, 2.5vw, 24px);
+    font-weight: 300;
+    color: rgba(240,248,255,0.7);
+    letter-spacing: 2px;
+    margin-bottom: 60px;
+    animation: fadeInUp 1s ease 0.7s both;
+    text-align: center;
+  }
+
+  /* ATTRACT BATTERY */
+  .attract-battery-wrap {
+    position: relative;
+    width: 200px; height: 340px;
+    margin-bottom: 60px;
+    animation: fadeInUp 1s ease 0.6s both, float 4s ease-in-out infinite 1.6s;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-16px); }
+  }
+
+  .attract-battery {
+    width: 200px; height: 340px;
+    border: 3px solid var(--teal);
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(0,201,167,0.3), inset 0 0 40px rgba(0,201,167,0.05);
+  }
+  .attract-battery::before {
+    content: '';
+    position: absolute; top: -22px; left: 50%;
+    transform: translateX(-50%);
+    width: 60px; height: 22px;
+    background: var(--navy2);
+    border: 3px solid var(--teal);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+  }
+  .battery-fill-attract {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(180deg, var(--teal) 0%, rgba(0,201,167,0.6) 100%);
+    animation: battery-charge 3s ease-in-out infinite;
+    box-shadow: 0 -10px 30px rgba(0,201,167,0.5);
+  }
+  @keyframes battery-charge {
+    0% { height: 20%; opacity: 0.8; }
+    50% { height: 85%; opacity: 1; }
+    100% { height: 20%; opacity: 0.8; }
+  }
+  .battery-segments {
+    position: absolute; bottom: 0; left: 0; right: 0; top: 0;
+    display: flex; flex-direction: column-reverse;
+    gap: 4px; padding: 8px;
+  }
+  .battery-seg {
+    flex: 1; border-radius: 4px;
+    background: rgba(0,201,167,0.08);
+    border: 1px solid rgba(0,201,167,0.15);
+  }
+  .attract-battery-pct {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-family: var(--font-display);
+    font-size: 48px; font-weight: 900;
+    color: var(--white);
+    text-shadow: 0 0 20px var(--teal);
+    z-index: 2;
+    animation: pct-pulse 3s ease-in-out infinite;
+  }
+  @keyframes pct-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* GLOW RINGS */
+  .glow-ring {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid rgba(0,201,167,0.2);
+    animation: ring-expand 3s ease-out infinite;
+    pointer-events: none;
+  }
+  .glow-ring:nth-child(2) { animation-delay: 1s; }
+  .glow-ring:nth-child(3) { animation-delay: 2s; }
+  @keyframes ring-expand {
+    0% { width: 280px; height: 280px; opacity: 0.6; }
+    100% { width: 600px; height: 600px; opacity: 0; }
+  }
+
+  /* CTA BUTTON */
+  .btn-start {
+    position: relative;
+    font-family: var(--font-display);
+    font-size: clamp(18px, 2.5vw, 28px);
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: var(--navy);
+    background: linear-gradient(135deg, var(--teal), var(--mint));
+    border: none;
+    padding: 22px 64px;
+    border-radius: 60px;
+    cursor: pointer;
+    animation: fadeInUp 1s ease 1s both;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 0 40px rgba(0,201,167,0.5), 0 20px 60px rgba(0,0,0,0.4);
+    overflow: hidden;
+  }
+  .btn-start::before {
+    content: '';
+    position: absolute; top: -50%; left: -60%;
+    width: 40%; height: 200%;
+    background: rgba(255,255,255,0.3);
+    transform: skewX(-20deg);
+    animation: btn-shine 3s ease-in-out infinite 1.5s;
+  }
+  @keyframes btn-shine {
+    0% { left: -60%; }
+    30%, 100% { left: 150%; }
+  }
+  .btn-start:hover {
+    transform: scale(1.05) translateY(-2px);
+    box-shadow: 0 0 60px rgba(0,201,167,0.7), 0 30px 80px rgba(0,0,0,0.5);
+  }
+  .btn-start:active { transform: scale(0.97); }
+
+  .attract-hint {
+    margin-top: 28px;
+    font-size: 13px;
+    color: rgba(240,248,255,0.3);
+    letter-spacing: 2px;
+    animation: fadeInUp 1s ease 1.2s both;
+  }
+
+  /* ===================== QUESTION SCREEN ===================== */
+  #questions {
+    padding: 60px 40px 40px;
+    gap: 0;
+  }
+
+  .q-progress-bar {
+    position: fixed; top: 44px; left: 0; right: 0;
+    height: 3px; background: rgba(0,201,167,0.1);
+    z-index: 25;
+  }
+  .q-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--blue-glow), var(--teal));
+    transition: width 0.5s ease;
+    box-shadow: 0 0 10px var(--teal);
+  }
+
+  .q-counter {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--teal);
+    letter-spacing: 3px;
+    margin-bottom: 20px;
+    opacity: 0.8;
+  }
+
+  .q-card {
+    width: min(700px, 90vw);
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 48px 52px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 40px 100px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+    position: relative;
+    overflow: hidden;
+  }
+  .q-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent);
+    opacity: 0.5;
+  }
+
+  .q-icon { font-size: 48px; margin-bottom: 20px; }
+
+  .q-text {
+    font-size: clamp(22px, 3.5vw, 34px);
+    font-weight: 700;
+    line-height: 1.4;
+    margin-bottom: 40px;
+    color: var(--white);
+  }
+
+  .q-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .q-options.cols-5 {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .q-opt {
+    background: rgba(0,55,129,0.2);
+    border: 1.5px solid rgba(0,201,167,0.2);
+    border-radius: 16px;
+    padding: 20px 16px;
+    font-size: clamp(14px, 1.8vw, 18px);
+    font-family: var(--font-body);
+    font-weight: 600;
+    color: rgba(240,248,255,0.85);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .q-opt::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, var(--teal), var(--blue-glow));
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .q-opt span { position: relative; z-index: 1; }
+  .q-opt:hover {
+    border-color: var(--teal);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.3), 0 0 20px rgba(0,201,167,0.2);
+  }
+  .q-opt:hover::before { opacity: 0.15; }
+  .q-opt.selected {
+    border-color: var(--teal);
+    background: rgba(0,201,167,0.2);
+    transform: translateY(-3px);
+    box-shadow: 0 0 30px rgba(0,201,167,0.3);
+    color: var(--white);
+  }
+  .q-opt.selected::before { opacity: 0.2; }
+  .q-opt:active { transform: scale(0.96); }
+
+  .q-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 32px;
+  }
+  .btn-back {
+    background: none;
+    border: 1.5px solid rgba(240,248,255,0.2);
+    border-radius: 50px;
+    padding: 12px 28px;
+    color: rgba(240,248,255,0.5);
+    font-family: var(--font-body); font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+  }
+  .btn-back:hover { border-color: rgba(240,248,255,0.4); color: var(--white); }
+
+  .btn-next {
+    background: linear-gradient(135deg, var(--blue-glow), var(--teal));
+    border: none;
+    border-radius: 50px;
+    padding: 14px 40px;
+    color: var(--white);
+    font-family: var(--font-display); font-size: 14px;
+    font-weight: 700; letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 0 20px rgba(41,121,255,0.3);
+  }
+  .btn-next:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(41,121,255,0.5); }
+  .btn-next:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+  /* ===================== SCANNING SCREEN ===================== */
+  #scanning { gap: 40px; }
+
+  .scan-title {
+    font-family: var(--font-display);
+    font-size: clamp(20px, 3vw, 36px);
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--teal);
+    text-align: center;
+    animation: text-flicker 0.1s infinite;
+  }
+  @keyframes text-flicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.8; }
+    97% { opacity: 1; }
+    98% { opacity: 0.6; }
+  }
+
+  .scan-ring-wrap {
+    position: relative;
+    width: 280px; height: 280px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .scan-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid transparent;
+  }
+  .scan-ring-1 {
+    width: 260px; height: 260px;
+    border-top-color: var(--teal);
+    border-right-color: var(--teal);
+    animation: spin 1.5s linear infinite;
+  }
+  .scan-ring-2 {
+    width: 220px; height: 220px;
+    border-bottom-color: var(--blue-glow);
+    border-left-color: var(--blue-glow);
+    animation: spin 2s linear infinite reverse;
+  }
+  .scan-ring-3 {
+    width: 180px; height: 180px;
+    border-top-color: var(--mint);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .scan-inner {
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,201,167,0.2) 0%, rgba(0,55,129,0.1) 100%);
+    border: 1px solid rgba(0,201,167,0.3);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    box-shadow: 0 0 40px rgba(0,201,167,0.2), inset 0 0 40px rgba(0,201,167,0.05);
+  }
+  .scan-emoji { font-size: 48px; animation: scan-spin-emoji 2s ease-in-out infinite; }
+  @keyframes scan-spin-emoji {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2) rotate(10deg); }
+  }
+
+  .scan-log {
+    width: min(600px, 85vw);
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(0,201,167,0.15);
+    border-radius: 12px;
+    padding: 20px 28px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--teal);
+    min-height: 120px;
+  }
+  .scan-log-line {
+    margin-bottom: 6px;
+    animation: log-appear 0.3s ease both;
+  }
+  .scan-log-line::before { content: '> '; color: var(--blue-glow); }
+  @keyframes log-appear {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .scan-bar-wrap {
+    width: min(500px, 80vw);
+  }
+  .scan-bar-label {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: rgba(100,255,218,0.6);
+    font-family: var(--font-mono);
+    margin-bottom: 8px;
+  }
+  .scan-bar-track {
+    height: 6px;
+    background: rgba(0,201,167,0.1);
+    border-radius: 3px; overflow: hidden;
+  }
+  .scan-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--blue-glow), var(--teal));
+    border-radius: 3px;
+    animation: scan-fill 5s ease-in-out forwards;
+    box-shadow: 0 0 10px var(--teal);
+  }
+  @keyframes scan-fill {
+    0% { width: 0%; }
+    20% { width: 15%; }
+    40% { width: 38%; }
+    60% { width: 61%; }
+    80% { width: 84%; }
+    100% { width: 100%; }
+  }
+
+  /* ===================== RESULT SCREEN ===================== */
+  #result {
+    overflow-y: auto;
+    padding: 60px 20px 80px;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+  }
+  #result::-webkit-scrollbar { width: 4px; }
+  #result::-webkit-scrollbar-thumb { background: var(--teal); border-radius: 2px; }
+
+  .result-inner {
+    width: min(900px, 95vw);
+    display: flex; flex-direction: column; gap: 24px;
+    padding-top: 20px;
+  }
+
+  .result-header {
+    text-align: center;
+    animation: fadeInUp 0.6s ease both;
+  }
+  .result-label {
+    font-family: var(--font-mono);
+    font-size: 12px; letter-spacing: 4px;
+    color: var(--teal); opacity: 0.7;
+    margin-bottom: 8px;
+  }
+  .result-headline {
+    font-family: var(--font-display);
+    font-size: clamp(24px, 4vw, 48px);
+    font-weight: 900; letter-spacing: 2px;
+    color: var(--white);
+    margin-bottom: 4px;
+  }
+
+  /* MAIN BATTERY */
+  .result-main {
+    display: flex; gap: 28px; align-items: stretch;
+    animation: fadeInUp 0.6s ease 0.15s both;
+    flex-wrap: wrap;
+  }
+
+  .battery-display {
+    flex: 0 0 auto;
+    width: 180px;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 20px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 16px;
+    backdrop-filter: blur(20px);
+    position: relative; overflow: hidden;
+  }
+  .battery-label-sm {
+    font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 3px;
+    color: rgba(100,255,218,0.6);
+  }
+  .battery-visual {
+    width: 80px; height: 140px;
+    border: 2.5px solid var(--teal);
+    border-radius: 12px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 0 20px rgba(0,201,167,0.2);
+  }
+  .battery-visual::before {
+    content: '';
+    position: absolute; top: -15px; left: 50%;
+    transform: translateX(-50%);
+    width: 30px; height: 15px;
+    background: var(--navy2);
+    border: 2.5px solid var(--teal);
+    border-bottom: none;
+    border-radius: 5px 5px 0 0;
+  }
+  .battery-fill-result {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    transition: height 1.5s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .battery-pct-text {
+    font-family: var(--font-display);
+    font-size: 36px; font-weight: 900;
+    text-shadow: 0 0 20px currentColor;
+    line-height: 1;
+  }
+
+  .ai-commentary {
+    flex: 1 1 300px;
+    background: var(--glass2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 32px;
+    backdrop-filter: blur(20px);
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 16px;
+    position: relative; overflow: hidden;
+  }
+  .ai-commentary::before {
+    content: '💬 AI DIAGNOSIS';
+    font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 3px;
+    color: var(--teal); opacity: 0.6;
+  }
+  .ai-title {
+    font-family: var(--font-display);
+    font-size: clamp(18px, 2.5vw, 26px);
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1.3;
+  }
+  .ai-sub {
+    font-size: clamp(14px, 1.8vw, 17px);
+    color: rgba(240,248,255,0.7);
+    line-height: 1.6;
+  }
+
+  /* METRICS GRID */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    animation: fadeInUp 0.6s ease 0.3s both;
+  }
+  @media (max-width: 600px) {
+    .metrics-grid { grid-template-columns: 1fr; }
+  }
+
+  .metric-card {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 24px;
+    backdrop-filter: blur(10px);
+    position: relative; overflow: hidden;
+  }
+  .metric-card::after {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 3px; height: 100%;
+    border-radius: 2px 0 0 2px;
+  }
+  .metric-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .metric-name {
+    font-family: var(--font-mono);
+    font-size: 11px; letter-spacing: 2px;
+    color: rgba(100,255,218,0.7);
+  }
+  .metric-value {
+    font-family: var(--font-display);
+    font-size: 22px; font-weight: 700;
+  }
+  .metric-bar-track {
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px; overflow: hidden;
+  }
+  .metric-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1.5s cubic-bezier(0.23, 1, 0.32, 1) 0.5s;
+    width: 0%;
+  }
+  .metric-desc {
+    margin-top: 8px;
+    font-size: 13px;
+    color: rgba(240,248,255,0.5);
+    line-height: 1.4;
+  }
+
+  /* RECOMMENDATIONS */
+  .rec-section {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 32px;
+    backdrop-filter: blur(20px);
+    animation: fadeInUp 0.6s ease 0.45s both;
+  }
+  .rec-title {
+    font-family: var(--font-display);
+    font-size: 14px; letter-spacing: 3px;
+    color: var(--teal);
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .rec-title::after {
+    content: '';
+    flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--teal), transparent);
+    opacity: 0.3;
+  }
+  .rec-pills {
+    display: flex; flex-wrap: wrap; gap: 12px;
+  }
+  .rec-pill {
+    background: rgba(0,55,129,0.3);
+    border: 1px solid rgba(41,121,255,0.3);
+    border-radius: 50px;
+    padding: 10px 20px;
+    font-size: 15px;
+    color: rgba(240,248,255,0.9);
+    display: flex; align-items: center; gap: 8px;
+    animation: pop-in 0.4s cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+
+  /* QR / SHARE SECTION */
+  .share-section {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    animation: fadeInUp 0.6s ease 0.6s both;
+  }
+  @media (max-width: 600px) {
+    .share-section { grid-template-columns: 1fr; }
+  }
+
+  .qr-card {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(20px);
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .qr-label {
+    font-family: var(--font-mono);
+    font-size: 11px; letter-spacing: 3px;
+    color: rgba(100,255,218,0.6);
+  }
+  #qrcode canvas, #qrcode img {
+    border-radius: 8px;
+  }
+
+  .mordee-cta {
+    background: linear-gradient(135deg, rgba(0,55,129,0.4), rgba(0,201,167,0.15));
+    border: 1px solid rgba(0,201,167,0.3);
+    border-radius: 20px;
+    padding: 24px 28px;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+    backdrop-filter: blur(20px);
+  }
+  .mordee-logo-text {
+    font-family: var(--font-display);
+    font-size: 24px; font-weight: 900;
+    color: var(--teal);
+    text-shadow: 0 0 20px rgba(0,201,167,0.5);
+  }
+  .mordee-tagline {
+    font-size: 14px;
+    color: rgba(240,248,255,0.6);
+    line-height: 1.6;
+  }
+  .btn-mordee {
+    background: linear-gradient(135deg, var(--teal), var(--mint));
+    border: none; border-radius: 50px;
+    padding: 14px 28px;
+    font-family: var(--font-display);
+    font-size: 13px; font-weight: 700; letter-spacing: 2px;
+    color: var(--navy);
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+  }
+  .btn-mordee:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,201,167,0.3); }
+
+  .result-actions {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    animation: fadeInUp 0.6s ease 0.75s both;
+  }
+  .btn-save {
+    flex: 1; min-width: 160px;
+    background: rgba(41,121,255,0.2);
+    border: 1.5px solid rgba(41,121,255,0.4);
+    border-radius: 50px;
+    padding: 16px 28px;
+    font-family: var(--font-display);
+    font-size: 13px; font-weight: 700; letter-spacing: 2px;
+    color: var(--white); cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .btn-save:hover { background: rgba(41,121,255,0.3); transform: translateY(-2px); }
+
+  .btn-restart {
+    flex: 1; min-width: 160px;
+    background: linear-gradient(135deg, var(--teal), var(--blue-glow));
+    border: none; border-radius: 50px;
+    padding: 16px 28px;
+    font-family: var(--font-display);
+    font-size: 13px; font-weight: 700; letter-spacing: 2px;
+    color: var(--white); cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .btn-restart:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(0,201,167,0.4); }
+
+  /* ===================== RESULT PAGE (MOBILE QR) ===================== */
+  #resultPage {
+    overflow-y: auto;
+    padding: 40px 20px 60px;
+    background: var(--navy);
+    min-height: 100vh;
+  }
+  .rp-wrap {
+    max-width: 420px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 20px;
+    animation: fadeInUp 0.6s ease both;
+  }
+  .rp-brand {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .rp-brand-name { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--teal); }
+  .rp-battery-main {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 32px;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    backdrop-filter: blur(20px);
+    text-align: center;
+  }
+  .rp-pct { font-family: var(--font-display); font-size: 72px; font-weight: 900; }
+  .rp-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--teal); letter-spacing: 3px; }
+  .rp-msg { font-size: 16px; color: rgba(240,248,255,0.8); line-height: 1.6; }
+  .rp-metrics { display: flex; flex-direction: column; gap: 10px; }
+  .rp-metric {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--glass); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 18px;
+    backdrop-filter: blur(10px);
+  }
+  .rp-metric-name { font-family: var(--font-mono); font-size: 12px; color: rgba(100,255,218,0.7); letter-spacing: 1px; }
+  .rp-metric-val { font-family: var(--font-display); font-size: 16px; font-weight: 700; }
+  .rp-recs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rp-rec { background: rgba(0,55,129,0.3); border: 1px solid rgba(0,201,167,0.25); border-radius: 50px; padding: 8px 16px; font-size: 14px; }
+  .rp-cta {
+    background: linear-gradient(135deg, var(--blue), var(--teal-dim));
+    border-radius: 16px; padding: 24px; text-align: center;
+  }
+  .rp-cta-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--teal); margin-bottom: 8px; }
+  .rp-cta-sub { font-size: 14px; color: rgba(240,248,255,0.7); }
+
+  /* ===================== ANIMATIONS ===================== */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .slide-in {
+    animation: slideIn 0.4s cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(40px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .slide-out {
+    animation: slideOut 0.3s ease forwards;
+  }
+  @keyframes slideOut {
+    to { opacity: 0; transform: translateX(-40px); }
+  }
+
+  /* GLITCH EFFECT */
+  .glitch {
+    position: relative;
+  }
+  .glitch::before, .glitch::after {
+    content: attr(data-text);
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+  .glitch::before {
+    color: var(--red);
+    animation: glitch1 4s infinite 2s;
+    clip-path: polygon(0 30%, 100% 30%, 100% 50%, 0 50%);
+  }
+  .glitch::after {
+    color: var(--teal);
+    animation: glitch2 4s infinite 2.1s;
+    clip-path: polygon(0 60%, 100% 60%, 100% 80%, 0 80%);
+  }
+  @keyframes glitch1 {
+    0%, 90%, 100% { transform: translate(0); opacity: 0; }
+    91% { transform: translate(-3px, 1px); opacity: 0.8; }
+    93% { transform: translate(3px, -1px); opacity: 0.8; }
+    95% { transform: translate(0); opacity: 0; }
+  }
+  @keyframes glitch2 {
+    0%, 90%, 100% { transform: translate(0); opacity: 0; }
+    92% { transform: translate(3px, 1px); opacity: 0.6; }
+    94% { transform: translate(-3px, -1px); opacity: 0.6; }
+    96% { transform: translate(0); opacity: 0; }
+  }
+
+  /* MUTE BTN */
+  .mute-btn {
+    position: fixed; bottom: 24px; right: 24px;
+    z-index: 50;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    backdrop-filter: blur(10px);
+    transition: all 0.2s;
+  }
+  .mute-btn:hover { background: rgba(0,201,167,0.15); transform: scale(1.1); }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,201,167,0.9);
+    color: var(--navy);
+    font-family: var(--font-mono);
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 2px;
+    padding: 12px 28px;
+    border-radius: 50px;
+    z-index: 9000;
+    pointer-events: none;
+    animation: toast-show 0.3s ease both;
+  }
+  @keyframes toast-show {
+    from { opacity: 0; bottom: 60px; }
+    to { opacity: 1; bottom: 80px; }
+  }
+  .toast.hiding { animation: toast-hide 0.3s ease forwards; }
+  @keyframes toast-hide {
+    to { opacity: 0; bottom: 100px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- BG Canvas -->
+<canvas id="bgCanvas"></canvas>
+<div class="scanlines"></div>
+
+<!-- HUD Corners -->
+<div class="hud-corner hud-tl"></div>
+<div class="hud-corner hud-tr"></div>
+<div class="hud-corner hud-bl"></div>
+<div class="hud-corner hud-br"></div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-brand">
+    <div class="status-dot"></div>
+    <span>MORDEE × ALLIANZ AYUDHYA</span>
+  </div>
+  <span id="statusTime">PREVENTIVE HEALTH ZONE</span>
+  <span id="statusId">SESSION: —</span>
+</div>
+
+<!-- Custom Cursor -->
+<div class="cursor" id="cursor"></div>
+<div class="cursor-dot" id="cursorDot"></div>
+
+<!-- Mute Button -->
+<div class="mute-btn" id="muteBtn" title="Sound">🔊</div>
+
+<!-- ==================== SCREEN 1: ATTRACT ==================== -->
+<div class="screen active" id="attract">
+  <div class="glow-ring"></div>
+  <div class="glow-ring"></div>
+  <div class="glow-ring"></div>
+  <div class="attract-logo">PREVENTIVE HEALTH ZONE — BOOTH EXPERIENCE v2.0</div>
+  <div class="attract-battery-wrap">
+    <div class="attract-battery">
+      <div class="battery-fill-attract"></div>
+      <div class="battery-segments">
+        <div class="battery-seg"></div>
+        <div class="battery-seg"></div>
+        <div class="battery-seg"></div>
+        <div class="battery-seg"></div>
+        <div class="battery-seg"></div>
+        <div class="battery-seg"></div>
+        <div class="battery-seg"></div>
+      </div>
+      <div class="attract-battery-pct">??%</div>
+    </div>
+  </div>
+  <div class="attract-title glitch" data-text="HUMAN BATTERY">
+    <span class="word-human">HUMAN </span><span class="word-battery">BATTERY</span><br>
+    <span class="word-scanner">SCANNER</span>
+  </div>
+  <div class="attract-subtitle">เช็กพลังชีวิตชาวออฟฟิศของคุณใน 30 วินาที</div>
+  <button class="btn-start" id="btnStart">⚡ START SCAN</button>
+  <div class="attract-hint">กด R เพื่อรีเซ็ต  •  กดเพื่อเริ่มต้น</div>
+</div>
+
+<!-- ==================== SCREEN 2: QUESTIONS ==================== -->
+<div class="screen" id="questions">
+  <div class="q-progress-bar"><div class="q-progress-fill" id="qProgress"></div></div>
+  <div class="q-counter" id="qCounter">QUESTION 1 / 7</div>
+  <div class="q-card" id="qCard">
+    <div class="q-icon" id="qIcon">😴</div>
+    <div class="q-text" id="qText">Loading…</div>
+    <div class="q-options" id="qOptions"></div>
+    <div class="q-nav">
+      <button class="btn-back" id="btnBack">← ย้อนกลับ</button>
+      <button class="btn-next" id="btnNext" disabled>ถัดไป →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCREEN 3: SCANNING ==================== -->
+<div class="screen" id="scanning">
+  <div class="scan-title" id="scanTitle">INITIALIZING SCAN…</div>
+  <div class="scan-ring-wrap">
+    <div class="scan-ring scan-ring-1"></div>
+    <div class="scan-ring scan-ring-2"></div>
+    <div class="scan-ring scan-ring-3"></div>
+    <div class="scan-inner">
+      <div class="scan-emoji" id="scanEmoji">🔬</div>
+    </div>
+  </div>
+  <div class="scan-log" id="scanLog"></div>
+  <div class="scan-bar-wrap">
+    <div class="scan-bar-label">
+      <span>ANALYZING</span><span id="scanPct">0%</span>
+    </div>
+    <div class="scan-bar-track"><div class="scan-bar-fill" id="scanFill"></div></div>
+  </div>
+</div>
+
+<!-- ==================== SCREEN 4: RESULT ==================== -->
+<div class="screen" id="result">
+  <div class="result-inner" id="resultInner"></div>
+</div>
+
+<!-- ==================== SCREEN 5: RESULT PAGE (QR) ==================== -->
+<div class="screen" id="resultPage">
+  <div class="rp-wrap" id="rpWrap"></div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const STATE = {
+  screen: 'attract',
+  currentQ: 0,
+  answers: [],
+  sessionId: '',
+  scores: {},
+  idleTimer: null,
+  muted: false,
+  selectedOption: null,
+};
+
+const QUESTIONS = [
+  {
+    icon: '😴', text: 'คุณนอนกี่ชั่วโมงเมื่อคืน?',
+    options: ['ต่ำกว่า 4 ชม.', '4–5 ชม.', '6–7 ชม.', 'มากกว่า 8 ชม.'],
+    weight: [0, 2, 8, 10],
+    cols: 2
+  },
+  {
+    icon: '☕', text: 'วันนี้กินกาแฟไปกี่แก้ว?',
+    options: ['0 แก้ว', '1 แก้ว', '2 แก้ว', '3+ แก้ว'],
+    weight: [10, 8, 5, 1],
+    cols: 2
+  },
+  {
+    icon: '🧠', text: 'ระดับความเครียดตอนนี้?',
+    options: ['น้อย', 'ปานกลาง', 'สูง', 'วิกฤต! 🚨'],
+    weight: [10, 6, 3, 0],
+    cols: 2
+  },
+  {
+    icon: '💻', text: 'คุณนั่งหน้าคอมวันละกี่ชั่วโมง?',
+    options: ['ต่ำกว่า 3 ชม.', '4–6 ชม.', '7–9 ชม.', '10+ ชม.'],
+    weight: [10, 7, 4, 1],
+    cols: 2
+  },
+  {
+    icon: '😖', text: 'ตอนนี้ร่างกายปวดตรงไหนมากที่สุด?',
+    options: ['คอ', 'หลัง', 'ไหล่', 'หัว', 'ไม่ปวด 🎉'],
+    weight: [2, 2, 3, 1, 10],
+    cols: 5
+  },
+  {
+    icon: '🏃', text: 'สัปดาห์นี้ออกกำลังกายไหม?',
+    options: ['ไม่เลย', '1 ครั้ง', '2–3 ครั้ง', '4+ ครั้ง'],
+    weight: [0, 4, 8, 10],
+    cols: 2
+  },
+  {
+    icon: '💧', text: 'วันนี้ดื่มน้ำเพียงพอหรือยัง?',
+    options: ['แทบไม่ได้ดื่ม', 'น้อยมาก', 'ปกติ', 'เยอะมาก 💦'],
+    weight: [0, 3, 7, 10],
+    cols: 2
+  },
+];
+
+const SCAN_LOGS = [
+  'Scanning biometric signature...',
+  'Detecting caffeine dependency level...',
+  'Measuring office syndrome risk factor...',
+  'Analyzing sleep debt accumulation...',
+  'Calculating burnout probability...',
+  'Cross-referencing with 10,000 office workers...',
+  'Consulting AI wellness engine...',
+  'Generating personalized health profile...',
+  'SCAN COMPLETE — Compiling results...',
+];
+
+const SCAN_EMOJIS = ['🔬', '🧬', '💊', '🧠', '⚡', '🔋', '📊', '✅'];
+
+// ============================================================
+// CANVAS PARTICLES
+// ============================================================
+(function initCanvas() {
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [], lines = [];
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  class Particle {
+    constructor() { this.reset(); }
+    reset() {
+      this.x = Math.random() * W;
+      this.y = Math.random() * H;
+      this.vx = (Math.random() - 0.5) * 0.4;
+      this.vy = (Math.random() - 0.5) * 0.4;
+      this.r = Math.random() * 1.5 + 0.5;
+      this.alpha = Math.random() * 0.5 + 0.1;
+      this.color = Math.random() > 0.5 ? '#00c9a7' : '#2979ff';
+    }
+    update() {
+      this.x += this.vx; this.y += this.vy;
+      if (this.x < 0 || this.x > W || this.y < 0 || this.y > H) this.reset();
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.globalAlpha = this.alpha;
+      ctx.fill();
+    }
+  }
+
+  for (let i = 0; i < 80; i++) particles.push(new Particle());
+
+  // Grid lines
+  function drawGrid() {
+    ctx.globalAlpha = 0.03;
+    ctx.strokeStyle = '#00c9a7';
+    ctx.lineWidth = 1;
+    const step = 60;
+    for (let x = 0; x < W; x += step) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y < H; y += step) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+
+  // Moving beam
+  let beamY = 0;
+  function drawBeam() {
+    beamY = (beamY + 1) % H;
+    const grad = ctx.createLinearGradient(0, beamY - 60, 0, beamY + 20);
+    grad.addColorStop(0, 'rgba(0,201,167,0)');
+    grad.addColorStop(0.8, 'rgba(0,201,167,0.04)');
+    grad.addColorStop(1, 'rgba(0,201,167,0)');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, beamY - 60, W, 80);
+  }
+
+  function loop() {
+    ctx.clearRect(0, 0, W, H);
+    drawGrid();
+    drawBeam();
+
+    // Connect nearby particles
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 100) {
+          ctx.globalAlpha = (1 - dist / 100) * 0.08;
+          ctx.strokeStyle = '#00c9a7';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+    particles.forEach(p => { p.update(); p.draw(); });
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
+// ============================================================
+// CURSOR
+// ============================================================
+(function initCursor() {
+  const cursor = document.getElementById('cursor');
+  const dot = document.getElementById('cursorDot');
+  let mx = 0, my = 0, cx = 0, cy = 0;
+  document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+  function update() {
+    cx += (mx - cx) * 0.15; cy += (my - cy) * 0.15;
+    cursor.style.left = cx + 'px'; cursor.style.top = cy + 'px';
+    dot.style.left = mx + 'px'; dot.style.top = my + 'px';
+    requestAnimationFrame(update);
+  }
+  update();
+  document.addEventListener('mousedown', () => cursor.style.transform = 'translate(-50%,-50%) scale(0.8)');
+  document.addEventListener('mouseup', () => cursor.style.transform = 'translate(-50%,-50%) scale(1)');
+})();
+
+// ============================================================
+// STATUS BAR CLOCK
+// ============================================================
+function updateClock() {
+  const now = new Date();
+  const t = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  document.getElementById('statusTime').textContent = `SYS-TIME: ${t}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============================================================
+// SOUND ENGINE
+// ============================================================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) { try { audioCtx = new AudioCtx(); } catch(e) { return null; } }
+  return audioCtx;
+}
+
+function playBeep(freq = 440, type = 'sine', dur = 0.1, vol = 0.2) {
+  if (STATE.muted) return;
+  const ac = getAudio(); if (!ac) return;
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.frequency.value = freq;
+  osc.type = type;
+  gain.gain.setValueAtTime(vol, ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  osc.start(ac.currentTime);
+  osc.stop(ac.currentTime + dur);
+}
+function playClick() { playBeep(800, 'square', 0.05, 0.15); }
+function playScan() {
+  [400, 600, 800, 1000, 1200].forEach((f, i) => {
+    setTimeout(() => playBeep(f, 'sine', 0.3, 0.1), i * 300);
+  });
+}
+function playSuccess() {
+  [523, 659, 784, 1047].forEach((f, i) => {
+    setTimeout(() => playBeep(f, 'triangle', 0.2, 0.15), i * 120);
+  });
+}
+
+document.getElementById('muteBtn').addEventListener('click', () => {
+  STATE.muted = !STATE.muted;
+  document.getElementById('muteBtn').textContent = STATE.muted ? '🔇' : '🔊';
+});
+
+// ============================================================
+// SCREEN TRANSITIONS
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active');
+  });
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  STATE.screen = id;
+}
+
+// ============================================================
+// IDLE TIMER
+// ============================================================
+function resetIdle() {
+  clearTimeout(STATE.idleTimer);
+  if (STATE.screen !== 'attract') {
+    STATE.idleTimer = setTimeout(() => {
+      resetAll();
+      showScreen('attract');
+    }, 20000);
+  }
+}
+document.addEventListener('click', resetIdle);
+document.addEventListener('keydown', resetIdle);
+
+// ============================================================
+// RESET
+// ============================================================
+function resetAll() {
+  STATE.currentQ = 0;
+  STATE.answers = [];
+  STATE.scores = {};
+  STATE.selectedOption = null;
+  clearTimeout(STATE.idleTimer);
+}
+
+// ============================================================
+// ATTRACT SCREEN
+// ============================================================
+document.getElementById('btnStart').addEventListener('click', () => {
+  playClick();
+  startScan();
+});
+
+function startScan() {
+  STATE.sessionId = 'MDB-' + Date.now().toString(36).toUpperCase();
+  document.getElementById('statusId').textContent = `SESSION: ${STATE.sessionId}`;
+  resetAll();
+  showQuestion(0);
+  showScreen('questions');
+  resetIdle();
+}
+
+// ============================================================
+// QUESTIONS
+// ============================================================
+function showQuestion(idx) {
+  STATE.currentQ = idx;
+  STATE.selectedOption = null;
+
+  const q = QUESTIONS[idx];
+  const total = QUESTIONS.length;
+  const progress = ((idx) / total) * 100;
+
+  document.getElementById('qProgress').style.width = progress + '%';
+  document.getElementById('qCounter').textContent = `QUESTION ${idx + 1} / ${total}`;
+  document.getElementById('qIcon').textContent = q.icon;
+  document.getElementById('qText').textContent = q.text;
+  document.getElementById('btnNext').disabled = true;
+
+  const card = document.getElementById('qCard');
+  card.classList.remove('slide-in');
+  void card.offsetWidth;
+  card.classList.add('slide-in');
+
+  const optContainer = document.getElementById('qOptions');
+  optContainer.innerHTML = '';
+  optContainer.className = 'q-options' + (q.cols === 5 ? ' cols-5' : '');
+
+  // Restore prior answer if going back
+  const prior = STATE.answers[idx] !== undefined ? STATE.answers[idx] : -1;
+
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'q-opt' + (i === prior ? ' selected' : '');
+    btn.innerHTML = `<span>${opt}</span>`;
+    btn.addEventListener('click', () => {
+      playClick();
+      document.querySelectorAll('.q-opt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      STATE.selectedOption = i;
+      STATE.answers[idx] = i;
+      document.getElementById('btnNext').disabled = false;
+
+      // On last question, auto-advance after short delay
+      if (idx === total - 1) {
+        setTimeout(() => advanceQuestion(), 400);
+      }
+    });
+    optContainer.appendChild(btn);
+
+    if (i === prior) {
+      STATE.selectedOption = prior;
+      document.getElementById('btnNext').disabled = false;
+    }
+  });
+
+  document.getElementById('btnBack').style.visibility = idx === 0 ? 'hidden' : 'visible';
+}
+
+document.getElementById('btnNext').addEventListener('click', () => {
+  if (STATE.selectedOption === null) return;
+  playClick();
+  advanceQuestion();
+});
+
+document.getElementById('btnBack').addEventListener('click', () => {
+  playClick();
+  if (STATE.currentQ > 0) showQuestion(STATE.currentQ - 1);
+});
+
+function advanceQuestion() {
+  const next = STATE.currentQ + 1;
+  if (next < QUESTIONS.length) {
+    showQuestion(next);
+  } else {
+    startScanning();
+  }
+}
+
+// ============================================================
+// SCANNING
+// ============================================================
+function startScanning() {
+  showScreen('scanning');
+  playScan();
+
+  const logEl = document.getElementById('scanLog');
+  const titleEl = document.getElementById('scanTitle');
+  const pctEl = document.getElementById('scanPct');
+  const emojiEl = document.getElementById('scanEmoji');
+  logEl.innerHTML = '';
+
+  const titles = [
+    'SCANNING HUMAN UNIT…',
+    'ANALYZING LIFE FORCE…',
+    'DETECTING BURNOUT SIGNAL…',
+    'COMPUTING OFFICE SYNDROME…',
+    'FINALIZING HEALTH REPORT…',
+  ];
+
+  let logIdx = 0;
+  let pct = 0;
+  const totalDuration = 5500;
+  const start = Date.now();
+
+  const interval = setInterval(() => {
+    const elapsed = Date.now() - start;
+    pct = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+    pctEl.textContent = pct + '%';
+
+    const tIdx = Math.min(Math.floor((elapsed / totalDuration) * titles.length), titles.length - 1);
+    titleEl.textContent = titles[tIdx];
+    emojiEl.textContent = SCAN_EMOJIS[Math.floor((elapsed / totalDuration) * SCAN_EMOJIS.length)] || '✅';
+
+    if (logIdx < SCAN_LOGS.length && elapsed > (logIdx + 1) * (totalDuration / SCAN_LOGS.length)) {
+      const line = document.createElement('div');
+      line.className = 'scan-log-line';
+      line.textContent = SCAN_LOGS[logIdx];
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+      logIdx++;
+    }
+
+    if (elapsed >= totalDuration) {
+      clearInterval(interval);
+      pctEl.textContent = '100%';
+      titleEl.textContent = 'SCAN COMPLETE ✓';
+      setTimeout(() => {
+        computeScores();
+        showResult();
+      }, 600);
+    }
+  }, 80);
+}
+
+// ============================================================
+// SCORE COMPUTATION
+// ============================================================
+function computeScores() {
+  const ans = STATE.answers;
+  const qs = QUESTIONS;
+
+  // Raw weighted scores 0–10 per question
+  const sleepRaw = qs[0].weight[ans[0]] ?? 5;
+  const caffeineRaw = qs[1].weight[ans[1]] ?? 5;
+  const stressRaw = qs[2].weight[ans[2]] ?? 5;
+  const sittingRaw = qs[3].weight[ans[3]] ?? 5;
+  const painRaw = qs[4].weight[ans[4]] ?? 5;
+  const exerciseRaw = qs[5].weight[ans[5]] ?? 5;
+  const waterRaw = qs[6].weight[ans[6]] ?? 5;
+
+  // Battery = weighted average
+  const battery = Math.round(
+    (sleepRaw * 0.22 + caffeineRaw * 0.08 + stressRaw * 0.22 +
+     sittingRaw * 0.12 + painRaw * 0.1 + exerciseRaw * 0.16 + waterRaw * 0.1) * 10
+  );
+
+  // Sub scores (0–100)
+  const sleepScore = sleepRaw * 10;
+  const burnout = Math.round(100 - (stressRaw * 0.5 + caffeineRaw * 0.2 + sleepRaw * 0.3) * 10);
+  const stressLoad = Math.round((10 - stressRaw) * 10);
+  const officeRisk = Math.round(100 - (sittingRaw * 0.5 + painRaw * 0.3 + exerciseRaw * 0.2) * 10);
+
+  STATE.scores = {
+    battery: Math.max(5, Math.min(100, battery)),
+    sleep: Math.max(0, Math.min(100, sleepScore)),
+    burnout: Math.max(0, Math.min(100, burnout)),
+    stress: Math.max(0, Math.min(100, stressLoad)),
+    officeRisk: Math.max(0, Math.min(100, officeRisk)),
+  };
+
+  // Save to localStorage
+  const data = {
+    sessionId: STATE.sessionId,
+    scores: STATE.scores,
+    answers: STATE.answers,
+    ts: new Date().toISOString(),
+  };
+  try { localStorage.setItem('hbs_' + STATE.sessionId, JSON.stringify(data)); } catch(e) {}
+}
+
+// ============================================================
+// RESULT
+// ============================================================
+function getBatteryColor(pct) {
+  if (pct >= 70) return { color: '#06d6a0', label: 'EXCELLENT', glow: 'rgba(6,214,160,0.4)' };
+  if (pct >= 50) return { color: '#ffd166', label: 'MODERATE', glow: 'rgba(255,209,102,0.4)' };
+  if (pct >= 30) return { color: '#ff8c42', label: 'LOW', glow: 'rgba(255,140,66,0.4)' };
+  return { color: '#ff3b5c', label: 'CRITICAL', glow: 'rgba(255,59,92,0.4)' };
+}
+
+function getAICommentary(battery, scores) {
+  if (battery >= 80) {
+    return {
+      title: '🏆 คุณคือมนุษย์สายถึกแห่งองค์กร!',
+      sub: 'พลังงานสูงกว่าหัวหน้าบางคน ร่างกายยังไม่ยอมลาออก\nต่อให้ Deadline ตอนเที่ยงคืน คุณก็สู้ได้อยู่ดี'
+    };
+  } else if (battery >= 60) {
+    return {
+      title: '✅ ร่างกายยังพอไปได้ แต่อย่าประมาท',
+      sub: 'ชาร์จแบตเพิ่มนิดหน่อยก็จะฟิตสุด\nลองพักตาจากหน้าจอบ้าง แล้วดื่มน้ำเพิ่มหน่อยนะ'
+    };
+  } else if (battery >= 40) {
+    return {
+      title: '⚠️ แบตกำลังจะหมด อยู่ในโหมดประหยัดพลังงาน',
+      sub: 'สมองต้องการวันลา ควรนอนแทนตอบไลน์งานดึกๆ\nถ้าไม่ชาร์จแบต อาจ Shutdown กลางออฟฟิศได้'
+    };
+  } else {
+    return {
+      title: '🚨 CRITICAL — ร่างกายกำลังจะ Shutdown!',
+      sub: 'ระบบเตือนภัยสีแดง สมองต้องการวันหยุดด่วน\nปิดแลปท็อป วางมือถือ แล้วไปนอนได้เลย ทันที!'
+    };
+  }
+}
+
+function getRecommendations(scores, answers) {
+  const recs = [];
+  if (answers[0] !== undefined && answers[0] <= 1) recs.push({ icon: '😴', text: 'นอนหลับให้ครบ 7–8 ชั่วโมง' });
+  if (answers[1] !== undefined && answers[1] >= 2) recs.push({ icon: '☕', text: 'ลดกาแฟ ดื่มน้ำแทน' });
+  if (answers[2] !== undefined && answers[2] >= 2) recs.push({ icon: '🧘', text: 'หายใจลึกๆ ลดความเครียด 5 นาที' });
+  if (answers[3] !== undefined && answers[3] >= 2) recs.push({ icon: '🧍', text: 'ลุกยืด ยืดเส้นทุก 1 ชั่วโมง' });
+  if (answers[4] !== undefined && answers[4] <= 3) recs.push({ icon: '💆', text: 'นวดบ่าและคอเบาๆ' });
+  if (answers[5] !== undefined && answers[5] <= 1) recs.push({ icon: '🚶', text: 'เดิน 15 นาที เพิ่มพลังงาน' });
+  if (answers[6] !== undefined && answers[6] <= 1) recs.push({ icon: '💧', text: 'ดื่มน้ำเพิ่มทันที 1 แก้ว' });
+  recs.push({ icon: '👨‍⚕️', text: 'ปรึกษาแพทย์กับ Mordee' });
+  return recs.slice(0, 5);
+}
+
+function showResult() {
+  playSuccess();
+  const s = STATE.scores;
+  const bc = getBatteryColor(s.battery);
+  const ai = getAICommentary(s.battery, s);
+  const recs = getRecommendations(s, STATE.answers);
+
+  // Build result URL with encoded data
+  const encoded = encodeURIComponent(JSON.stringify({
+    id: STATE.sessionId,
+    b: s.battery,
+    sl: s.sleep,
+    bu: s.burnout,
+    st: s.stress,
+    or: s.officeRisk,
+    ai: ai.title,
+    ais: ai.sub,
+    recs: recs.map(r => r.icon + r.text),
+  }));
+
+  // QR points to Mordee deep link — works from any device, no server needed
+  const MORDEE_URL = 'https://mordee.onelink.me/ZBQ5/k615zyda';
+  const resultURL = MORDEE_URL;
+
+  const inner = document.getElementById('resultInner');
+  inner.innerHTML = `
+    <div class="result-header">
+      <div class="result-label">⚡ SCAN COMPLETE — ${STATE.sessionId}</div>
+      <div class="result-headline">YOUR BATTERY REPORT</div>
+    </div>
+
+    <div class="result-main">
+      <div class="battery-display">
+        <div class="battery-label-sm">BATTERY LEVEL</div>
+        <div class="battery-visual">
+          <div class="battery-fill-result" id="resBattFill" style="height:0%; background: linear-gradient(180deg, ${bc.color} 0%, ${bc.color}99 100%); box-shadow: 0 -8px 20px ${bc.glow};"></div>
+        </div>
+        <div class="battery-pct-text" id="resPctText" style="color: ${bc.color}; text-shadow: 0 0 20px ${bc.glow};">0%</div>
+        <div class="battery-label-sm" style="color: ${bc.color};">${bc.label}</div>
+      </div>
+
+      <div class="ai-commentary">
+        <div class="ai-title">${ai.title}</div>
+        <div class="ai-sub">${ai.sub.replace(/\n/g, '<br>')}</div>
+      </div>
+    </div>
+
+    <div class="metrics-grid">
+      ${makeMetric('SLEEP RECOVERY', s.sleep, '#6c63ff', getSleepLabel(s.sleep))}
+      ${makeMetric('BURNOUT RISK', s.burnout, '#ff3b5c', getBurnoutLabel(s.burnout))}
+      ${makeMetric('STRESS LOAD', s.stress, '#ff8c42', getStressLabel(s.stress))}
+      ${makeMetric('OFFICE SYNDROME', s.officeRisk, '#00c9a7', getOfficeLabel(s.officeRisk))}
+    </div>
+
+    <div class="rec-section">
+      <div class="rec-title">⚡ RECOMMENDED RECHARGE</div>
+      <div class="rec-pills">
+        ${recs.map((r, i) => `<div class="rec-pill" style="animation-delay:${i * 0.08}s">${r.icon} ${r.text}</div>`).join('')}
+      </div>
+    </div>
+
+    <div class="share-section">
+      <div class="qr-card">
+        <div class="qr-label">📱 SCAN TO DOWNLOAD MORDEE</div>
+        <div id="qrcode"></div>
+        <div style="font-size:11px; color:rgba(100,255,218,0.4); font-family:var(--font-mono); text-align:center; margin-top:4px; line-height:1.6;">สแกนเพื่อดาวน์โหลด Mordee<br>& ดูแลสุขภาพต่อเนื่อง 🏥</div>
+      </div>
+
+      <div class="mordee-cta">
+        <div>
+          <div class="mordee-logo-text">หมอดี</div>
+          <div style="font-family:var(--font-mono); font-size:10px; color:rgba(100,255,218,0.5); letter-spacing:2px; margin-bottom:8px;">× ALLIANZ AYUDHYA</div>
+          <div class="mordee-tagline">ดูแลสุขภาพเชิงป้องกัน<br>ปรึกษาแพทย์ออนไลน์ได้เลย<br>ไม่ต้องรอ ไม่ต้องเดินทาง 🏥</div>
+        </div>
+        <a href="https://mordee.onelink.me/ZBQ5/k615zyda" target="_blank" style="text-decoration:none;">
+          <button class="btn-mordee">ดูแลสุขภาพกับ Mordee →</button>
+        </a>
+      </div>
+    </div>
+
+    <div class="result-actions">
+      <button class="btn-save" id="btnSaveImg">📸 บันทึกผลเป็นรูป</button>
+      <button class="btn-restart" id="btnRestart">🔁 SCAN AGAIN</button>
+    </div>
+  `;
+
+  showScreen('result');
+
+  // Animate battery fill
+  setTimeout(() => {
+    document.getElementById('resBattFill').style.height = s.battery + '%';
+    animateNumber('resPctText', 0, s.battery, 1400, '%');
+  }, 400);
+
+  // Animate metric bars
+  setTimeout(() => {
+    document.querySelectorAll('.metric-bar-fill').forEach(el => {
+      el.style.width = el.dataset.target + '%';
+    });
+  }, 700);
+
+  // Generate QR
+  setTimeout(() => {
+    generateQR(resultURL);
+  }, 800);
+
+  // Button events
+  document.getElementById('btnRestart').addEventListener('click', () => {
+    playClick();
+    resetAll();
+    showScreen('attract');
+  });
+  document.getElementById('btnSaveImg').addEventListener('click', async () => {
+    playClick();
+    showToast('📸 กำลังสร้างรูป…');
+    try {
+      const target = document.getElementById('resultInner');
+      const canvas = await html2canvas(target, {
+        backgroundColor: '#020b18',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        windowWidth: target.scrollWidth,
+        windowHeight: target.scrollHeight,
+      });
+      const link = document.createElement('a');
+      link.download = `HumanBattery_${STATE.sessionId}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('✅ บันทึกรูปสำเร็จ!');
+    } catch(e) {
+      showToast('📸 กรุณา Screenshot หน้าจอนี้!');
+    }
+  });
+
+  resetIdle();
+}
+
+function makeMetric(name, value, color, label) {
+  return `
+    <div class="metric-card" style="--mc: ${color}">
+      <div class="metric-header">
+        <div class="metric-name">${name}</div>
+        <div class="metric-value" style="color: ${color}">${value}%</div>
+      </div>
+      <div class="metric-bar-track">
+        <div class="metric-bar-fill" data-target="${value}" style="background: linear-gradient(90deg, ${color}66, ${color}); box-shadow: 0 0 8px ${color}44;"></div>
+      </div>
+      <div class="metric-desc">${label}</div>
+    </div>
+  `;
+}
+
+function animateNumber(id, from, to, dur, suffix = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = Date.now();
+  function tick() {
+    const elapsed = Date.now() - start;
+    const progress = Math.min(elapsed / dur, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(from + (to - from) * eased) + suffix;
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function getSleepLabel(v) {
+  if (v >= 80) return '😴 นอนหลับดีมาก พร้อมรับวันใหม่';
+  if (v >= 50) return '😐 นอนพอประมาณ อาจเพิ่มได้อีก';
+  if (v >= 30) return '😪 นอนน้อยกว่ามาตรฐาน ระวังตัว!';
+  return '🚨 อดนอนขั้นวิกฤต ควรนอนทันที!';
+}
+function getBurnoutLabel(v) {
+  if (v <= 25) return '🔥 เกือบ Burnout แล้ว! หยุดพักเลย';
+  if (v <= 50) return '⚠️ เสี่ยง Burnout ระดับกลาง';
+  if (v <= 75) return '✅ ยังโอเค แต่ต้องระวัง';
+  return '💪 Burnout Risk ต่ำมาก เยี่ยม!';
+}
+function getStressLabel(v) {
+  if (v <= 25) return '😤 ความเครียดสูงวิกฤต — หายใจลึกๆ';
+  if (v <= 50) return '😰 ความเครียดอยู่ในระดับสูง';
+  if (v <= 75) return '😌 ความเครียดพอรับได้';
+  return '😎 ใจเย็นมากๆ ขอบคุณพระเจ้า!';
+}
+function getOfficeLabel(v) {
+  if (v >= 75) return '🚨 Office Syndrome ระดับสูง ต้องยืดด่วน!';
+  if (v >= 50) return '⚠️ มีสัญญาณ Office Syndrome เริ่มแล้ว';
+  if (v >= 25) return '✅ ความเสี่ยงน้อย แต่ควรยืดเส้นบ้าง';
+  return '🎉 ร่างกายแข็งแรง Office Syndrome ต่ำมาก!';
+}
+
+// ============================================================
+// QR CODE
+// ============================================================
+function generateQR(url) {
+  const container = document.getElementById('qrcode');
+  if (!container) return;
+  container.innerHTML = '';
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(container, {
+      text: url,
+      width: 140, height: 140,
+      colorDark: '#00c9a7',
+      colorLight: '#020b18',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } else {
+    container.innerHTML = '<div style="width:140px;height:140px;display:flex;align-items:center;justify-content:center;background:rgba(0,201,167,0.1);border-radius:8px;font-size:11px;color:rgba(100,255,218,0.5);text-align:center;padding:16px;font-family:var(--font-mono);">QR unavailable offline</div>';
+  }
+}
+
+// ============================================================
+// RESULT PAGE (QR scan destination)
+// ============================================================
+function checkResultPage() {
+  const params = new URLSearchParams(window.location.search);
+  const r = params.get('r');
+  if (!r) return;
+
+  try {
+    const data = JSON.parse(decodeURIComponent(r));
+    const bc = getBatteryColor(data.b);
+    const rpWrap = document.getElementById('rpWrap');
+    rpWrap.innerHTML = `
+      <div class="rp-brand">
+        <div class="rp-brand-name">หมอดี × Allianz Ayudhya</div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:rgba(100,255,218,0.5);">${data.id}</div>
+      </div>
+
+      <div class="rp-battery-main">
+        <div class="rp-title">⚡ HUMAN BATTERY</div>
+        <div class="rp-pct" style="color:${bc.color}; text-shadow:0 0 30px ${bc.color};">${data.b}%</div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:${bc.color};letter-spacing:2px;">${bc.label}</div>
+        <div class="rp-msg">${data.ai}</div>
+        <div class="rp-msg" style="font-size:13px;opacity:0.7;margin-top:-8px;">${data.ais.replace(/\n/g,'<br>')}</div>
+      </div>
+
+      <div class="rp-metrics">
+        ${makeRPMetric('SLEEP RECOVERY', data.sl, '#6c63ff')}
+        ${makeRPMetric('BURNOUT RISK', data.bu, '#ff3b5c')}
+        ${makeRPMetric('STRESS LOAD', data.st, '#ff8c42')}
+        ${makeRPMetric('OFFICE SYNDROME', data.or, '#00c9a7')}
+      </div>
+
+      <div style="font-family:var(--font-mono);font-size:11px;color:rgba(100,255,218,0.6);letter-spacing:3px;">⚡ RECOMMENDED RECHARGE</div>
+      <div class="rp-recs">
+        ${(data.recs || []).map(r => `<div class="rp-rec">${r}</div>`).join('')}
+      </div>
+
+      <div class="rp-cta">
+        <div class="rp-cta-title">หมอดี × Allianz Ayudhya</div>
+        <div class="rp-cta-sub">ดูแลสุขภาพเชิงป้องกัน<br>ปรึกษาแพทย์ออนไลน์ ไม่ต้องรอคิว<br>Preventive Health Zone 🏥</div>
+        <a href="https://mordee.onelink.me/ZBQ5/k615zyda" target="_blank" style="display:block;margin-top:16px;background:linear-gradient(135deg,#00c9a7,#64ffda);color:#020b18;font-weight:700;text-align:center;padding:14px 20px;border-radius:50px;text-decoration:none;font-size:15px;letter-spacing:1px;">ดาวน์โหลด Mordee →</a>
+      </div>
+    `;
+    showScreen('resultPage');
+  } catch(e) { console.error('Invalid result data', e); }
+}
+
+function makeRPMetric(name, val, color) {
+  return `<div class="rp-metric">
+    <span class="rp-metric-name">${name}</span>
+    <span class="rp-metric-val" style="color:${color}">${val}%</span>
+  </div>`;
+}
+
+// ============================================================
+// KEYBOARD SHORTCUT
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.key === 'r' || e.key === 'R') {
+    resetAll();
+    showScreen('attract');
+    showToast('🔄 SYSTEM RESET');
+  }
+  if (e.key === 'f' || e.key === 'F') {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.classList.add('hiding');
+    setTimeout(() => t.remove(), 300);
+  }, 2500);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+checkResultPage();
+resetIdle();
+
+// Touch-to-start on attract
+document.getElementById('attract').addEventListener('click', (e) => {
+  if (e.target.closest('#btnStart')) return; // already handled
+});
+
+// Show fullscreen hint
+setTimeout(() => {
+  if (!window.location.search) showToast('Press F for fullscreen  •  R to reset');
+}, 1500);
+</script>
+</body>
+</html>
