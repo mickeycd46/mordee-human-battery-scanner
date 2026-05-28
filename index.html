@@ -1653,9 +1653,9 @@ function showResult() {
     recs: recs.map(r => r.icon + r.text),
   }));
 
-  // QR points to Mordee deep link — works from any device, no server needed
-  const MORDEE_URL = 'https://mordee.onelink.me/ZBQ5/k615zyda';
-  const resultURL = MORDEE_URL;
+  // QR points to GitHub Pages result page with encoded data
+  const BASE_URL = 'https://mickeycd46.github.io/human-battery-scanner/';
+  const resultURL = BASE_URL + '?r=' + encoded;
 
   const inner = document.getElementById('resultInner');
   inner.innerHTML = `
